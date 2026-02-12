@@ -1,0 +1,274 @@
+-- FULL SCRIPT (FINAL VERSION)
+-- TELEPORT BUTTON + PHYSICAL KEYBOARD F
+-- AUTO BLOCK ALWAYS ON + MODERN GUI
+-- BLUE NEON STAND HERE MARKERS (UPDATED)
+-- ANTI LAG REMOVED
+-- DYNAMIC TELEPORT BASED ON EXECUTION POSITION
+
+-- =========================
+-- Services
+-- =========================
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local backpack = player:WaitForChild("Backpack")
+local char = player.Character or player.CharacterAdded:Wait()
+local humanoid = char:WaitForChild("Humanoid")
+local hrp = char:WaitForChild("HumanoidRootPart")
+
+player.CharacterAdded:Connect(function(c)
+    char = c
+    humanoid = c:WaitForChild("Humanoid")
+    hrp = c:WaitForChild("HumanoidRootPart")
+end)
+
+-- =========================
+-- Settings
+-- =========================
+local teleportKey = Enum.KeyCode.F
+local autoBlockEnabled = true
+
+local teleportDebounce = false
+local blockDebounce = false
+local TELEPORT_COOLDOWN = 0.6
+local BLOCK_COOLDOWN = 0.25
+
+-- =========================
+-- Dynamic Execution Position Logic
+-- =========================
+local execCheckRadius = 12 -- studs tolerance
+
+local triggerPos = Vector3.new(-352.09, -6.99, 7.15)
+local normalPos  = Vector3.new(-352.12, -7.06, 113.41)
+
+local function isNear(a, b, dist)
+    return (a - b).Magnitude <= dist
+end
+
+-- =========================
+-- GUI
+-- =========================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TP_GUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0,240,0,150)
+Main.Position = UDim2.new(0.5,-120,0.5,-75)
+Main.BackgroundColor3 = Color3.fromRGB(0,0,0)
+Main.Active = true
+Main.Draggable = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0,16)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1,0,0,40)
+Title.Text = "HYLEXCO TP + BLOCK"
+Title.TextColor3 = Color3.fromRGB(255,0,0)
+Title.TextStrokeTransparency = 0
+Title.TextStrokeColor3 = Color3.fromRGB(130,0,0)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.BackgroundTransparency = 1
+
+local TeleportButton = Instance.new("TextButton", Main)
+TeleportButton.Size = UDim2.new(0,200,0,40)
+TeleportButton.Position = UDim2.new(0.5,-100,0,55)
+TeleportButton.Text = "TELEPORT"
+TeleportButton.Font = Enum.Font.GothamBold
+TeleportButton.TextSize = 14
+TeleportButton.TextColor3 = Color3.fromRGB(255,0,0)
+TeleportButton.TextStrokeTransparency = 0
+TeleportButton.TextStrokeColor3 = Color3.fromRGB(130,0,0)
+TeleportButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+Instance.new("UICorner", TeleportButton).CornerRadius = UDim.new(0,12)
+
+local Info = Instance.new("TextLabel", Main)
+Info.Size = UDim2.new(1,0,0,40)
+Info.Position = UDim2.new(0,0,0,105)
+Info.Text = "KEY: [ F ]   |   AUTO BLOCK: ON"
+Info.TextColor3 = Color3.fromRGB(255,0,0)
+Info.TextStrokeTransparency = 0
+Info.TextStrokeColor3 = Color3.fromRGB(130,0,0)
+Info.Font = Enum.Font.GothamBold
+Info.TextSize = 13
+Info.BackgroundTransparency = 1
+
+TeleportButton.MouseEnter:Connect(function()
+    TweenService:Create(TeleportButton,TweenInfo.new(0.15),{BackgroundColor3 = Color3.fromRGB(70,70,70)}):Play()
+end)
+
+TeleportButton.MouseLeave:Connect(function()
+    TweenService:Create(TeleportButton,TweenInfo.new(0.15),{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play()
+end)
+
+-- =========================
+-- BLUE NEON STAND HERE MARKERS (NEW)
+-- =========================
+
+local standPositions = {
+    Vector3.new(-326.20, -5.11, 4.79),
+    Vector3.new(-325.68, -5.11, 113.40)
+}
+
+local function createMarker(pos)
+    local marker = Instance.new("Part")
+    marker.Name = "StandHereMarker"
+    marker.Shape = Enum.PartType.Ball
+    marker.Size = Vector3.new(1.8, 1.8, 1.8)
+    marker.Position = pos
+    marker.Anchored = true
+    marker.CanCollide = false
+    marker.Material = Enum.Material.Neon
+    marker.Color = Color3.fromRGB(0, 170, 255)
+    marker.Parent = Workspace
+
+    local light = Instance.new("PointLight", marker)
+    light.Color = marker.Color
+    light.Brightness = 3
+    light.Range = 12
+
+    local billboard = Instance.new("BillboardGui", marker)
+    billboard.Size = UDim2.new(0,200,0,50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+
+    local text = Instance.new("TextLabel", billboard)
+    text.Size = UDim2.new(1,0,1,0)
+    text.BackgroundTransparency = 1
+    text.Text = "STAND HERE"
+    text.Font = Enum.Font.GothamBold
+    text.TextScaled = true
+    text.TextColor3 = Color3.fromRGB(0, 170, 255)
+    text.TextStrokeTransparency = 0
+    text.TextStrokeColor3 = Color3.fromRGB(0, 60, 120)
+
+    task.spawn(function()
+        local baseY = pos.Y
+        while marker.Parent do
+            for i = 0, 1, 0.05 do
+                marker.Position = Vector3.new(
+                    pos.X,
+                    baseY + math.sin(i * math.pi) * 0.5,
+                    pos.Z
+                )
+                task.wait(0.03)
+            end
+        end
+    end)
+end
+
+for _,pos in ipairs(standPositions) do
+    createMarker(pos)
+end
+
+-- =========================
+-- Logic
+-- =========================
+local REQUIRED_TOOL = "Flying Carpet"
+
+local function equipFlyingCarpet()
+    local tool = backpack:FindFirstChild(REQUIRED_TOOL) or char:FindFirstChild(REQUIRED_TOOL)
+    if not tool then return false end
+    humanoid:EquipTool(tool)
+    return true
+end
+
+local function blockPlayer(plr)
+    if blockDebounce then return end
+    blockDebounce = true
+
+    if plr and plr ~= player then
+        pcall(function()
+            StarterGui:SetCore("PromptBlockPlayer", plr)
+        end)
+    end
+
+    task.delay(BLOCK_COOLDOWN, function()
+        blockDebounce = false
+    end)
+end
+
+local function autoBlockOnce()
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            blockPlayer(plr)
+        end
+    end
+end
+
+-- =========================
+-- Dynamic teleport spots
+-- =========================
+local spots
+
+if isNear(hrp.Position, triggerPos, execCheckRadius) then
+    spots = {
+        CFrame.new(-370.77, -7.26, 55.76),
+        CFrame.new(-335.28, -5.41, 102.46),
+    }
+    warn("EXECUTION ZONE: CUSTOM TELEPORT MODE")
+
+elseif isNear(hrp.Position, normalPos, execCheckRadius) then
+    spots = {
+        CFrame.new(-372.80, -7.31, 68.51),
+        CFrame.new(-334.69, -5.34, 18.54),
+    }
+    warn("EXECUTION ZONE: NORMAL TELEPORT MODE")
+
+else
+    spots = {
+        CFrame.new(-372.80, -7.31, 68.51),
+        CFrame.new(-334.69, -5.34, 18.54),
+    }
+    warn("EXECUTION ZONE: DEFAULT MODE")
+end
+
+-- =========================
+-- Teleport logic
+-- =========================
+local function teleportAll()
+    if teleportDebounce then return end
+    teleportDebounce = true
+
+    if not equipFlyingCarpet() then
+        teleportDebounce = false
+        return
+    end
+
+    for _,spot in ipairs(spots) do
+        hrp.CFrame = spot
+        task.wait(0.12)
+    end
+
+    task.spawn(autoBlockOnce)
+
+    task.delay(TELEPORT_COOLDOWN, function()
+        teleportDebounce = false
+    end)
+end
+
+-- =========================
+-- Controls
+-- =========================
+TeleportButton.MouseButton1Click:Connect(teleportAll)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.Keyboard then
+        if input.KeyCode == teleportKey then
+            teleportAll()
+        end
+    end
+end)
+
+print("================================")
+print("TP + AUTO BLOCK + STAND MARKERS READY")
+print("ANTI LAG REMOVED")
+print("BUTTON + KEYBIND: F")
+print("================================")
