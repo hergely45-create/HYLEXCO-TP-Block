@@ -1,9 +1,10 @@
--- FULL SCRIPT (FINAL VERSION)
+-- FULL SCRIPT (FINAL VERSION WITH MODE INDICATOR)
 -- TELEPORT BUTTON + PHYSICAL KEYBOARD F
 -- AUTO BLOCK ALWAYS ON + MODERN GUI
 -- BLUE NEON STAND HERE MARKERS (UPDATED)
 -- ANTI LAG REMOVED
 -- DYNAMIC TELEPORT BASED ON EXECUTION POSITION
+-- ON-SCREEN GUI MODE INDICATOR ADDED
 
 -- =========================
 -- Services
@@ -44,6 +45,7 @@ local execCheckRadius = 12 -- studs tolerance
 
 local triggerPos = Vector3.new(-352.09, -6.99, 7.15)
 local normalPos  = Vector3.new(-352.12, -7.06, 113.41)
+local altPos     = Vector3.new(-351.83, -7.31, 18.38)
 
 local function isNear(a, b, dist)
     return (a - b).Magnitude <= dist
@@ -59,8 +61,8 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0,240,0,150)
-Main.Position = UDim2.new(0.5,-120,0.5,-75)
+Main.Size = UDim2.new(0,240,0,170)
+Main.Position = UDim2.new(0.5,-120,0.5,-85)
 Main.BackgroundColor3 = Color3.fromRGB(0,0,0)
 Main.Active = true
 Main.Draggable = true
@@ -89,7 +91,7 @@ TeleportButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
 Instance.new("UICorner", TeleportButton).CornerRadius = UDim.new(0,12)
 
 local Info = Instance.new("TextLabel", Main)
-Info.Size = UDim2.new(1,0,0,40)
+Info.Size = UDim2.new(1,0,0,20)
 Info.Position = UDim2.new(0,0,0,105)
 Info.Text = "KEY: [ F ]   |   AUTO BLOCK: ON"
 Info.TextColor3 = Color3.fromRGB(255,0,0)
@@ -98,6 +100,17 @@ Info.TextStrokeColor3 = Color3.fromRGB(130,0,0)
 Info.Font = Enum.Font.GothamBold
 Info.TextSize = 13
 Info.BackgroundTransparency = 1
+
+local ModeIndicator = Instance.new("TextLabel", Main)
+ModeIndicator.Size = UDim2.new(1,0,0,20)
+ModeIndicator.Position = UDim2.new(0,0,0,130)
+ModeIndicator.Text = "MODE: DEFAULT"
+ModeIndicator.TextColor3 = Color3.fromRGB(0, 255, 255)
+ModeIndicator.TextStrokeTransparency = 0
+ModeIndicator.TextStrokeColor3 = Color3.fromRGB(0, 80, 120)
+ModeIndicator.Font = Enum.Font.GothamBold
+ModeIndicator.TextSize = 13
+ModeIndicator.BackgroundTransparency = 1
 
 TeleportButton.MouseEnter:Connect(function()
     TweenService:Create(TeleportButton,TweenInfo.new(0.15),{BackgroundColor3 = Color3.fromRGB(70,70,70)}):Play()
@@ -110,7 +123,6 @@ end)
 -- =========================
 -- BLUE NEON STAND HERE MARKERS (NEW)
 -- =========================
-
 local standPositions = {
     Vector3.new(-326.20, -5.11, 4.79),
     Vector3.new(-325.68, -5.11, 113.40)
@@ -203,30 +215,35 @@ local function autoBlockOnce()
 end
 
 -- =========================
--- Dynamic teleport spots
+-- Dynamic teleport spots with GUI mode indicator
 -- =========================
-local spots
-
-if isNear(hrp.Position, triggerPos, execCheckRadius) then
-    spots = {
-        CFrame.new(-370.77, -7.26, 55.76),
-        CFrame.new(-335.28, -5.41, 102.46),
-    }
-    warn("EXECUTION ZONE: CUSTOM TELEPORT MODE")
-
-elseif isNear(hrp.Position, normalPos, execCheckRadius) then
-    spots = {
-        CFrame.new(-372.80, -7.31, 68.51),
-        CFrame.new(-334.69, -5.34, 18.54),
-    }
-    warn("EXECUTION ZONE: NORMAL TELEPORT MODE")
-
-else
-    spots = {
-        CFrame.new(-372.80, -7.31, 68.51),
-        CFrame.new(-334.69, -5.34, 18.54),
-    }
-    warn("EXECUTION ZONE: DEFAULT MODE")
+local function getSpotsAndMode()
+    if isNear(hrp.Position, altPos, execCheckRadius) then
+        ModeIndicator.Text = "MODE: ALT"
+        return {
+            CFrame.new(-412.64, -6.81, -17.50),
+            CFrame.new(-411.32, -6.81, 134.67),
+            CFrame.new(-332.48, -5.16, 97.66),
+        }
+    elseif isNear(hrp.Position, triggerPos, execCheckRadius) then
+        ModeIndicator.Text = "MODE: CUSTOM"
+        return {
+            CFrame.new(-370.77, -7.26, 55.76),
+            CFrame.new(-335.28, -5.41, 102.46),
+        }
+    elseif isNear(hrp.Position, normalPos, execCheckRadius) then
+        ModeIndicator.Text = "MODE: NORMAL"
+        return {
+            CFrame.new(-372.80, -7.31, 68.51),
+            CFrame.new(-334.69, -5.34, 18.54),
+        }
+    else
+        ModeIndicator.Text = "MODE: DEFAULT"
+        return {
+            CFrame.new(-372.80, -7.31, 68.51),
+            CFrame.new(-334.69, -5.34, 18.54),
+        }
+    end
 end
 
 -- =========================
@@ -241,6 +258,7 @@ local function teleportAll()
         return
     end
 
+    local spots = getSpotsAndMode()
     for _,spot in ipairs(spots) do
         hrp.CFrame = spot
         task.wait(0.12)
@@ -267,8 +285,19 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
+-- =========================
+-- Auto-update GUI mode indicator while moving
+-- =========================
+task.spawn(function()
+    while true do
+        getSpotsAndMode() -- updates ModeIndicator in real-time
+        task.wait(0.2)
+    end
+end)
+
 print("================================")
 print("TP + AUTO BLOCK + STAND MARKERS READY")
 print("ANTI LAG REMOVED")
 print("BUTTON + KEYBIND: F")
+print("MODE INDICATOR ENABLED")
 print("================================")
